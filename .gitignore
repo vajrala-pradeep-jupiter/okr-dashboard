@@ -1,0 +1,17 @@
+# Secrets — never commit
+.streamlit/secrets.toml
+
+# Persisted admin settings — regenerated from code defaults on cloud
+settings.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db

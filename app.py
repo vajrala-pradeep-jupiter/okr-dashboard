@@ -955,14 +955,18 @@ def _publish_widget(upload_key: str, gh_path: str, label: str) -> bool:
         f"{label} · .csv / .xlsx", type=["csv", "xlsx", "xls"], key=upload_key,
     )
     if f is not None:
+        content = f.getvalue()
+        if not content:
+            st.error(f"Uploaded file is empty — please re-select the file and try again.")
+            return False
+        st.caption(f"Ready to publish: **{f.name}** ({len(content):,} bytes)")
         if st.button(f"☁️ Publish {label} to dashboard",
                      key=f"pub_{upload_key}", use_container_width=True, type="primary"):
-            content = f.getvalue()
             _, sha = _gh_read(gh_path)
             with st.spinner(f"Publishing {label}…"):
                 ok = _gh_write(gh_path, content, sha)
             if ok:
-                st.success(f"✓ {label} published — all viewers will see updated data within 5 min.")
+                st.success(f"✓ {label} published — all viewers will see updated data.")
                 _fetch_gh_data.clear()
                 return True
     return False

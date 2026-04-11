@@ -225,13 +225,32 @@ def _fetch_gh_data(path: str) -> bytes | None:
 
 
 def _bytes_to_df(content: bytes, filename: str) -> pd.DataFrame | None:
-    try:
-        if filename.endswith(".csv"):
-            return pd.read_csv(io.BytesIO(content))
-        return pd.read_excel(io.BytesIO(content))
-    except Exception as exc:
-        st.error(f"Could not parse {filename}: {exc}")
-        return None
+    """Parse bytes into a DataFrame.
+    Detects format by magic bytes (not filename) so an xlsx saved as .csv still works.
+    Falls back through multiple encodings for CSV files.
+    """
+    # Excel magic bytes: xlsx = PK zip header, xls = OLE2 header
+    is_excel = content[:4] in (b'PK\x03\x04', b'\xd0\xcf\x11\xe0')
+
+    if is_excel:
+        try:
+            return pd.read_excel(io.BytesIO(content))
+        except Exception as exc:
+            st.error(f"Could not parse {filename} as Excel: {exc}")
+            return None
+
+    # Plain text — try common encodings in order
+    for enc in ("utf-8", "utf-8-sig", "latin-1", "cp1252", "iso-8859-1"):
+        try:
+            df = pd.read_csv(io.BytesIO(content), encoding=enc)
+            if df.empty or df.columns.tolist() == []:
+                continue
+            return df
+        except Exception:
+            continue
+
+    st.error(f"Could not parse {filename}: tried Excel and CSV (utf-8, latin-1, cp1252).")
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────

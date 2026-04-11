@@ -226,30 +226,34 @@ def _fetch_gh_data(path: str) -> bytes | None:
 
 def _bytes_to_df(content: bytes, filename: str) -> pd.DataFrame | None:
     """Parse bytes into a DataFrame.
-    Detects format by magic bytes (not filename) so an xlsx saved as .csv still works.
-    Falls back through multiple encodings for CSV files.
+    Tries Excel first (handles xlsx/xls regardless of filename),
+    then falls back to CSV with multiple encodings.
     """
-    # Excel magic bytes: xlsx = PK zip header, xls = OLE2 header
-    is_excel = content[:4] in (b'PK\x03\x04', b'\xd0\xcf\x11\xe0')
+    if not content or len(content) < 4:
+        st.error(f"{filename} is empty.")
+        return None
 
-    if is_excel:
-        try:
-            return pd.read_excel(io.BytesIO(content))
-        except Exception as exc:
-            st.error(f"Could not parse {filename} as Excel: {exc}")
-            return None
+    attempts: list[str] = []
 
-    # Plain text — try common encodings in order
+    # Always try Excel first — pd.read_excel raises if it's not Excel
+    try:
+        df = pd.read_excel(io.BytesIO(content))
+        if len(df.columns) > 0:
+            return df
+    except Exception as e:
+        attempts.append(f"Excel: {e}")
+
+    # Try CSV with common encodings
     for enc in ("utf-8", "utf-8-sig", "latin-1", "cp1252", "iso-8859-1"):
         try:
             df = pd.read_csv(io.BytesIO(content), encoding=enc)
-            if df.empty or df.columns.tolist() == []:
-                continue
-            return df
-        except Exception:
-            continue
+            if len(df.columns) > 0:
+                return df
+        except Exception as e:
+            attempts.append(f"CSV({enc}): {e}")
 
-    st.error(f"Could not parse {filename}: tried Excel and CSV (utf-8, latin-1, cp1252).")
+    st.error(f"Could not parse **{filename}**. Is it a valid CSV or Excel file? "
+             f"Details: {' | '.join(attempts)}")
     return None
 
 
